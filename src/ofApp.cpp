@@ -149,6 +149,8 @@ void ofApp::setAlphaPixels(ofPixels& pixels) {
     // rgbaPixels.setChannel(3, alphaPixels);
     // return rgbaPixels;
 
+    pixels.setImageType(OF_IMAGE_COLOR_ALPHA);
+    pixels.setNumChannels(4);
     pixels.setChannel(3, alphaPixels);
 }
 
