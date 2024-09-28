@@ -14,6 +14,8 @@ class ofApp : public ofBaseApp{
         vector<std::string> dones;
 		float fps = 30;
 
+		bool needExit = false;
+
 		int cores = 4;
 
         vector<std::pair<uint64_t, uint64_t>> address_and_sizes;

@@ -41,6 +41,10 @@ void ofApp::startEncodeThread() {
         ofLogNotice("ofApp") << "Start Encode";
 
         for (int i = 0; i < sourceDirPaths.size(); i++) {
+            if (needExit) {
+                return;
+            }
+
             // target path is source path + ".gv"
             std::string sourceDirPath = sourceDirPaths[i];
 
@@ -149,6 +153,10 @@ void ofApp::startEncodeThread() {
 
             // make parallel up to cores
             for (int j = 0; j < paths.size(); j++) {
+                if (needExit) {
+                    return;
+                }
+
                 // wait processes
                 map<int, ofBuffer> lz4Bufs;
                 map<int, pair<uint64_t, uint64_t>> address_and_sizes_;
@@ -300,7 +308,6 @@ void ofApp::startEncodeThread() {
 
                 j += flags.size() - 1;
             }
-
 
             // write address and sizes
             for (int j = 0; j < address_and_sizes.size(); j++) {
@@ -458,5 +465,6 @@ void ofApp::dragEvent(ofDragInfo dragInfo){
 
 // --------------------------------------------------------------
 void ofApp::exit() {
+    needExit = true;
     ofxAsync::stopAll();
 }
