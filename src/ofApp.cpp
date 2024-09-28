@@ -80,7 +80,8 @@ void ofApp::startEncodeThread() {
                 ofLoadImage(pixels, path);
 
                 if (pixels.getNumChannels() == 3) {
-                    pixels = convertToRGBA(pixels);
+                    // pixels = convertToRGBA(pixels);
+                    setAlphaPixels(pixels);
                 }
 
                 ofBuffer lz4Buf = serializer.serializeImageToLZ4(pixels);
@@ -134,15 +135,21 @@ void ofApp::writeHeader(ofstream& fp, const string& firstFramePath, int frameCou
     fp.write(reinterpret_cast<char*>(&frameBytes), sizeof(uint32_t));
 }
 
-ofPixels ofApp::convertToRGBA(const ofPixels& pixels) {
+void ofApp::setAlphaPixels(ofPixels& pixels) {
     ofPixels alphaPixels;
     alphaPixels.allocate(pixels.getWidth(), pixels.getHeight(), 1);
-    std::fill(alphaPixels.getData(), alphaPixels.getData() + alphaPixels.size(), 255);
+    // std::fill(alphaPixels.getData(), alphaPixels.getData() + alphaPixels.size(), 255);
 
-    ofPixels rgbaPixels;
-    rgbaPixels.setFromPixels(pixels.getData(), pixels.getWidth(), pixels.getHeight(), OF_IMAGE_COLOR_ALPHA);
-    rgbaPixels.setChannel(3, alphaPixels);
-    return rgbaPixels;
+    for (int i = 0; i < pixels.size(); i += 3) {
+        alphaPixels[i / 3] = 255;
+    }
+
+    // ofPixels rgbaPixels;
+    // rgbaPixels.setFromPixels(pixels.getData(), pixels.getWidth(), pixels.getHeight(), OF_IMAGE_COLOR_ALPHA);
+    // rgbaPixels.setChannel(3, alphaPixels);
+    // return rgbaPixels;
+
+    pixels.setChannel(3, alphaPixels);
 }
 
 void ofApp::processFramesInParallel(const vector<string>& framePaths, int numCores, const std::function<void(const string&)>& processFrame) {

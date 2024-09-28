@@ -48,6 +48,7 @@ class ofApp : public ofBaseApp{
 		void writeHeader(ofstream& fp, const string& firstFramePath, int frameCount);
 		void writeAddressAndSizes(ofstream& fp, const vector<pair<uint64_t, uint64_t>>& address_and_sizes);
 		void fixFrameCount(ofstream& fp, size_t frameCount);
-		ofPixels convertToRGBA(const ofPixels& pixels);
+		// ofPixels convertToRGBA(const ofPixels& pixels);
+		void setAlphaPixels(ofPixels& pixels);
 		void processFramesInParallel(const vector<string>& framePaths, int numCores, const std::function<void(const string&)>& processFrame);
 };
