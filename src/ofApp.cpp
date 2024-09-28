@@ -200,6 +200,14 @@ void ofApp::processFramesInParallel(
         lz4Buffers[path].clear();
     }
 
+    // clear address and sizes
+    addressAndSizes.clear();
+
+    // clear sorted paths
+    sortedPaths.clear();
+
+    // clear lz4 buffers
+    lz4Buffers.clear();
 }
 
 void ofApp::writeAddressAndSizes(ofstream& fp, const vector<pair<uint64_t, uint64_t>>& address_and_sizes) {
