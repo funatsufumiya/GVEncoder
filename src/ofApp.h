@@ -52,8 +52,6 @@ class ofApp : public ofBaseApp{
 		void setAlphaPixels(ofPixels& pixels);
 		void processFramesInParallel(
 			const vector<string>& framePaths, int numCores,
-			std::map<std::string, ofBuffer>& lz4Buffers,
-			std::map<std::string, std::pair<uint64_t, uint64_t>>& addressAndSizes,
-			ofstream& fp,
-			const std::function<void(const string&)>& processFrame);
+			int& processed_index,
+			const std::function<void(const string&, int)>& processFrame);
 };
