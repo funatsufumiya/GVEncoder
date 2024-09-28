@@ -50,5 +50,10 @@ class ofApp : public ofBaseApp{
 		void fixFrameCount(ofstream& fp, size_t frameCount);
 		// ofPixels convertToRGBA(const ofPixels& pixels);
 		void setAlphaPixels(ofPixels& pixels);
-		void processFramesInParallel(const vector<string>& framePaths, int numCores, const std::function<void(const string&)>& processFrame);
+		void processFramesInParallel(
+			const vector<string>& framePaths, int numCores,
+			std::map<std::string, ofBuffer>& lz4Buffers,
+			std::map<std::string, std::pair<uint64_t, uint64_t>>& addressAndSizes,
+			ofstream& fp,
+			const std::function<void(const string&)>& processFrame);
 };

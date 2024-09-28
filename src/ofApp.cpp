@@ -78,7 +78,10 @@ void ofApp::startEncodeThread() {
             std::map<std::string, ofBuffer> lz4Buffers;
             std::map<std::string, std::pair<uint64_t, uint64_t>> addressAndSizes;
 
-            processFramesInParallel(framePaths, cores, [&](const string& path) {
+            processFramesInParallel(
+                framePaths, cores,
+                lz4Buffers, addressAndSizes, fp,
+                [&](const string& path) {
                 ofPixels pixels;
                 ofLoadImage(pixels, path);
 
@@ -104,23 +107,6 @@ void ofApp::startEncodeThread() {
                 float progress = (float)(current) / sourceDir.size() * 100;
                 progressMap[sourceDirPath] = progress;
             });
-
-            // sort by path
-            std::vector<std::string> sortedPaths;
-            for (const auto& [path, _] : addressAndSizes) {
-                sortedPaths.push_back(path);
-            }
-            std::sort(sortedPaths.begin(), sortedPaths.end());
-
-            // Write lz4 buffers
-            for (const auto& path : sortedPaths) {
-                const auto& lz4Buf = lz4Buffers[path];
-                fp.write(lz4Buf.getData(), lz4Buf.size());
-                address_and_sizes.emplace_back(addressAndSizes[path]);
-
-                // clear buffer
-                lz4Buffers[path].clear();
-            }
 
             // Write address and sizes (same as before)
             writeAddressAndSizes(fp, address_and_sizes);
@@ -180,7 +166,13 @@ void ofApp::setAlphaPixels(ofPixels& pixels) {
     pixels.setChannel(3, alphaPixels);
 }
 
-void ofApp::processFramesInParallel(const vector<string>& framePaths, int numCores, const std::function<void(const string&)>& processFrame) {
+void ofApp::processFramesInParallel(
+    const vector<string>& framePaths, int numCores,
+    std::map<std::string, ofBuffer>& lz4Buffers,
+    std::map<std::string, std::pair<uint64_t, uint64_t>>& addressAndSizes,
+    ofstream& fp,
+    const std::function<void(const string&)>& processFrame)
+{
     for (size_t i = 0; i < framePaths.size(); i += numCores) {
         vector<std::future<void>> futures;
         for (int j = 0; j < numCores && i + j < framePaths.size(); ++j) {
@@ -190,6 +182,24 @@ void ofApp::processFramesInParallel(const vector<string>& framePaths, int numCor
             future.wait();
         }
     }
+
+    // sort by path
+    std::vector<std::string> sortedPaths;
+    for (const auto& [path, _] : addressAndSizes) {
+        sortedPaths.push_back(path);
+    }
+    std::sort(sortedPaths.begin(), sortedPaths.end());
+
+    // Write lz4 buffers
+    for (const auto& path : sortedPaths) {
+        const auto& lz4Buf = lz4Buffers[path];
+        fp.write(lz4Buf.getData(), lz4Buf.size());
+        address_and_sizes.emplace_back(addressAndSizes[path]);
+
+        // clear buffer
+        lz4Buffers[path].clear();
+    }
+
 }
 
 void ofApp::writeAddressAndSizes(ofstream& fp, const vector<pair<uint64_t, uint64_t>>& address_and_sizes) {
