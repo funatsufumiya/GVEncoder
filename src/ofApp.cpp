@@ -1,5 +1,7 @@
 #include "ofApp.h"
 
+#include <future>
+
 // note
 // binary format of GV
 // 0: uint32_t width
@@ -26,27 +28,22 @@ void ofApp::update(){
 
 //--------------------------------------------------------------
 void ofApp::startEncodeThread() {
-    ofxAsync::run([&](){
+    ofxAsync::run([&]() {
         encodeStarted = true;
 
-        // first, sort files by name
+        // Sort files by name
         std::sort(sourceDirPaths.begin(), sourceDirPaths.end());
 
-        // create empty progress map
+        // Create empty progress map
         progressMap.clear();
-        for (int i = 0; i < sourceDirPaths.size(); i++) {
-            progressMap[sourceDirPaths[i]] = 0;
+        for (const auto& path : sourceDirPaths) {
+            progressMap[path] = 0;
         }
 
         ofLogNotice("ofApp") << "Start Encode";
 
-        for (int i = 0; i < sourceDirPaths.size(); i++) {
-            if (needExit) {
-                break;
-            }
-
-            // target path is source path + ".gv"
-            std::string sourceDirPath = sourceDirPaths[i];
+        for (const auto& sourceDirPath : sourceDirPaths) {
+            if (needExit) break;
 
             ofDirectory sourceDir(sourceDirPath);
             sourceDir.allowExt("jpg");
@@ -56,287 +53,121 @@ void ofApp::startEncodeThread() {
             sourceDir.allowExt("bmp");
             sourceDir.listDir();
 
-            // open target 
-            std::string targetPath = sourceDirPath + ".gv";
-            // if exists, delete
+            string targetPath = sourceDirPath + ".gv";
             ofFile::removeFile(targetPath);
-            
-            // open file pointer with std
+
             ofstream fp(targetPath, ios::binary);
             if (!fp.is_open()) {
                 ofLogError("ofApp") << "Failed to open file: " << targetPath;
-                return;
+                continue;
             }
 
-            // get paths and sort
-            std::vector<std::string> paths;
-            for (int j = 0; j < sourceDir.size(); j++) {
-                paths.push_back(sourceDir.getPath(j));
-            }
-            std::sort(paths.begin(), paths.end());
+            // Write header (same as before)
+            writeHeader(fp, sourceDir.getPath(0), sourceDir.size());
 
-            // write header
-            {
-                // open first image to get width, height
-                // ofImage firstImage;
-                ofPixels firstPixels;
-                // ofLogNotice("ofApp") << "Open: " << sourceDir.getPath(0);
-                ofLoadImage(firstPixels, paths[0]);
+            vector<pair<uint64_t, uint64_t>> address_and_sizes;
+            std::mutex file_mutex;
+            std::atomic<int> processed_frames(0);
 
-                // write width, height
-                uint32_t width = firstPixels.getWidth();
-                uint32_t height = firstPixels.getHeight();
-                fp.write((char*)&width, sizeof(uint32_t));
-                fp.write((char*)&height, sizeof(uint32_t));
-
-                // write frame count
-                uint32_t frameCount = paths.size();
-                fp.write((char*)&frameCount, sizeof(uint32_t));
-
-                // write fps
-                fp.write((char*)&fps, sizeof(float));
-
-                // write fmt
-                uint32_t fmt = 5; // DXT5
-                fp.write((char*)&fmt, sizeof(uint32_t));
-
-                // write frame bytes
-                uint32_t frameBytes = width * height; // because DXT5
-                fp.write((char*)&frameBytes, sizeof(uint32_t));
-
-                firstPixels.clear();
+            // Process frames
+            vector<string> framePaths;
+            for (int i = 0; i < sourceDir.size(); ++i) {
+                framePaths.push_back(sourceDir.getPath(i));
             }
 
-            // clear address and sizes
-            address_and_sizes.clear();
+            processFramesInParallel(framePaths, cores, [&](const string& path) {
+                ofPixels pixels;
+                ofLoadImage(pixels, path);
 
-            // write frames
-
-            // for (int j = 0; j < paths.size(); j++) {
-            //     uint64_t address = fp.tellp();
-
-            //     std::string sourcePath = paths[j];
-
-            //     // ofLogNotice("ofApp") << "Encode: " << sourcePath;
-                
-            //     ofFile sourceFile(sourcePath);
-
-            //     ofPixels sourcePixels;
-            //     sourcePixels.setImageType(OF_IMAGE_COLOR_ALPHA);
-            //     ofLoadImage(sourcePixels, sourcePath);
-
-            //     // if RGB, convert to RGBA
-            //     if (sourcePixels.getNumChannels() == 3) {
-            //         ofPixels alphaPixels;
-            //         alphaPixels.allocate(sourcePixels.getWidth(), sourcePixels.getHeight(), 1);
-            //         // set alpha to 255
-            //         for (int i = 0; i < alphaPixels.size(); i++) {
-            //             alphaPixels[i] = 255;
-            //         }
-
-            //         sourcePixels.setImageType(OF_IMAGE_COLOR_ALPHA);
-            //         sourcePixels.setNumChannels(4);
-            //         sourcePixels.setChannel(3, alphaPixels);
-            //     }
-
-            //     ofBuffer lz4Buf = serializer.serializeImageToLZ4(sourcePixels);
-
-            //     uint64_t size = lz4Buf.size();
-
-            //     // save address and size
-            //     address_and_sizes.push_back(std::make_pair(address, size));
-
-            //     // write lz4 compressed frame
-            //     fp.write(lz4Buf.getData(), size);
-
-            //     float progress = (float)(j + 1) / sourceDir.size() * 100;
-            //     progressMap[sourceDirPath] = progress;
-            // }
-
-            // make parallel up to cores
-            for (int j = 0; j < paths.size(); j++) {
-                if (needExit) {
-                    break;
+                if (pixels.getNumChannels() == 3) {
+                    pixels = convertToRGBA(pixels);
                 }
 
-                // wait processes
-                map<int, ofBuffer> lz4Bufs;
-                map<int, pair<uint64_t, uint64_t>> address_and_sizes_;
-                map<int, ofPixels> sourcePixelMap;
-                map<int, bool> flags;
-                map<int, bool> error_flags;
+                ofBuffer lz4Buf = serializer.serializeImageToLZ4(pixels);
 
-                vector<std::string> queue;
+                std::lock_guard<std::mutex> lock(file_mutex);
+                uint64_t address = fp.tellp();
+                fp.write(lz4Buf.getData(), lz4Buf.size());
+                address_and_sizes.emplace_back(address, lz4Buf.size());
 
-                for (int k = 0; k < cores; k++) {
-                    if (j + k >= paths.size()) {
-                        break;
-                    }
-
-                    queue.push_back(paths[j + k]);
-                    flags[k] = false;
-                }
-
-                // load pixels
-                for (int k = 0; k < queue.size(); k++) {
-                    std::string sourcePath = queue[k];
-
-                    ofLogNotice("ofApp") << "Encode: " << sourcePath;
-
-                    ofPixels sourcePixels;
-                    sourcePixels.setImageType(OF_IMAGE_COLOR_ALPHA);
-                    ofLoadImage(sourcePixels, sourcePath);
-
-                    // if RGB, convert to RGBA
-                    if (sourcePixels.getNumChannels() == 3) {
-                        ofPixels alphaPixels;
-                        alphaPixels.allocate(sourcePixels.getWidth(), sourcePixels.getHeight(), 1);
-                        // set alpha to 255
-                        for (int i = 0; i < alphaPixels.size(); i++) {
-                            alphaPixels[i] = 255;
-                        }
-
-                        sourcePixels.setImageType(OF_IMAGE_COLOR_ALPHA);
-                        sourcePixels.setNumChannels(4);
-                        sourcePixels.setChannel(3, alphaPixels);
-                    }
-
-                    sourcePixelMap[k] = sourcePixels;
-                }
-
-                std::mutex mutex;
-
-                for (int k = 0; k < queue.size(); k++) {
-                    std::string sourcePath = queue[k];
-                    ofPixels sourcePixels = sourcePixelMap[k];
-
-                    ofxAsync::run([&, sourcePath, sourcePixels, k](){
-                        try {
-                            ofLogNotice("ofApp") << "Encode: " << sourcePath;
-
-                            // check pixel size is not 0
-                            if (sourcePixels.size() == 0) {
-                                throw std::exception();
-                            }
-
-                            ofBuffer lz4Buf = serializer.serializeImageToLZ4(sourcePixels);
-                            if (lz4Buf.size() == 0) {
-                                throw std::exception();
-                            }
-                            uint64_t size = lz4Buf.size();
-
-                            mutex.lock();
-
-                            // save address and size
-                            address_and_sizes_[k] = std::make_pair(0, size);
-                            
-                            // save lz4 buffer
-                            lz4Bufs[k] = lz4Buf;
-
-                            ofLogNotice("ofApp") << "End Encode: " << sourcePath;
-
-                            flags[k] = true;
-
-                            mutex.unlock();
-                        } catch (std::exception e) {
-                            error_flags[k] = true;
-                            flags[k] = true;
-                        }
-                    });
-                }
-
-                // wait all
-                // ofLogNotice("ofApp") << "Wait all";
-                bool state = false;
-                while (!state) {
-                    // update progress
-                    float progress = (float)(j + lz4Bufs.size()) / sourceDir.size() * 100;
-                    ofSleepMillis(1);
-
-                    // check all done
-                    for (int l = 0; l < flags.size(); l++) {
-                        if (!flags[l]) {
-                            state = false;
-                            break;
-                        }
-                        state = true;
-                    }
-
-                    // print flags
-                    // ofLogNotice("ofApp") << "Flags: " << flags.size();
-                    // for (int l = 0; l < flags.size(); l++) {
-                    //     ofLogNotice("ofApp") << "Flag: " << flags[l];
-                    // }
-                }
-
-                // ofLogNotice("ofApp") << "All done";
-
-                // if error, abort()
-                for (int k = 0; k < error_flags.size(); k++) {
-                    if (error_flags[k]) {
-                        ofLogError("ofApp") << "Error: " << queue[k];
-                        abort();
-                    }
-                }
-
-                // write lz4 compressed frame
-                for (int k = 0; k < lz4Bufs.size(); k++) {
-                    uint64_t address = fp.tellp();
-
-                    // save address
-                    address_and_sizes_[k].first = address;
-
-                    // write lz4
-                    fp.write(lz4Bufs[k].getData(), lz4Bufs[k].size());
-                }
-
-                // save address and sizes
-                for (int k = 0; k < address_and_sizes_.size(); k++) {
-                    address_and_sizes.push_back(address_and_sizes_[k]);
-                }
-
-                float progress = (float)(j + 1) / sourceDir.size() * 100;
+                int current = ++processed_frames;
+                float progress = (float)(current) / sourceDir.size() * 100;
                 progressMap[sourceDirPath] = progress;
+            });
 
-                // clear memory
-                for (int k = 0; k < lz4Bufs.size(); k++) {
-                    lz4Bufs[k].clear();
-                }
-                for (int k = 0; k < sourcePixelMap.size(); k++) {
-                    sourcePixelMap[k].clear();
-                }
-                lz4Bufs.clear();
-                sourcePixelMap.clear();
+            // Write address and sizes (same as before)
+            writeAddressAndSizes(fp, address_and_sizes);
 
-                j += flags.size() - 1;
-            }
-
-            // write address and sizes
-            for (int j = 0; j < address_and_sizes.size(); j++) {
-                fp.write((char*)&address_and_sizes[j].first, sizeof(uint64_t));
-                fp.write((char*)&address_and_sizes[j].second, sizeof(uint64_t));
-            }
-
-            // if aborted, fix frameCount
+            // If aborted, fix frameCount (same as before)
             if (needExit) {
-                uint32_t frameCount = address_and_sizes.size();
-                fp.seekp(8);
-                fp.write((char*)&frameCount, sizeof(uint32_t));
+                fixFrameCount(fp, address_and_sizes.size());
             }
 
-            // close file
             fp.close();
-
             dones.push_back(sourceDirPath);
         }
 
-        // clear sourceDirPaths
+        // Clear sourceDirPaths
         sourceDirPaths.clear();
 
         ofLogNotice("ofApp") << "End Encode";
-
         encodeStarted = false;
     });
+}
+
+// Helper functions
+
+void ofApp::writeHeader(ofstream& fp, const string& firstFramePath, int frameCount) {
+    ofPixels firstPixels;
+    ofLoadImage(firstPixels, firstFramePath);
+
+    uint32_t width = firstPixels.getWidth();
+    uint32_t height = firstPixels.getHeight();
+    uint32_t fmt = 5; // DXT5
+    uint32_t frameBytes = width * height;
+
+    fp.write(reinterpret_cast<char*>(&width), sizeof(uint32_t));
+    fp.write(reinterpret_cast<char*>(&height), sizeof(uint32_t));
+    fp.write(reinterpret_cast<char*>(&frameCount), sizeof(uint32_t));
+    fp.write(reinterpret_cast<char*>(&fps), sizeof(float));
+    fp.write(reinterpret_cast<char*>(&fmt), sizeof(uint32_t));
+    fp.write(reinterpret_cast<char*>(&frameBytes), sizeof(uint32_t));
+}
+
+ofPixels ofApp::convertToRGBA(const ofPixels& pixels) {
+    ofPixels alphaPixels;
+    alphaPixels.allocate(pixels.getWidth(), pixels.getHeight(), 1);
+    std::fill(alphaPixels.getData(), alphaPixels.getData() + alphaPixels.size(), 255);
+
+    ofPixels rgbaPixels;
+    rgbaPixels.setFromPixels(pixels.getData(), pixels.getWidth(), pixels.getHeight(), OF_IMAGE_COLOR_ALPHA);
+    rgbaPixels.setChannel(3, alphaPixels);
+    return rgbaPixels;
+}
+
+void ofApp::processFramesInParallel(const vector<string>& framePaths, int numCores, const std::function<void(const string&)>& processFrame) {
+    for (size_t i = 0; i < framePaths.size(); i += numCores) {
+        vector<std::future<void>> futures;
+        for (int j = 0; j < numCores && i + j < framePaths.size(); ++j) {
+            futures.push_back(std::async(std::launch::async, processFrame, framePaths[i + j]));
+        }
+        for (auto& future : futures) {
+            future.wait();
+        }
+    }
+}
+
+void ofApp::writeAddressAndSizes(ofstream& fp, const vector<pair<uint64_t, uint64_t>>& address_and_sizes) {
+    for (const auto& [address, size] : address_and_sizes) {
+        fp.write(reinterpret_cast<const char*>(&address), sizeof(uint64_t));
+        fp.write(reinterpret_cast<const char*>(&size), sizeof(uint64_t));
+    }
+}
+
+void ofApp::fixFrameCount(ofstream& fp, size_t actualFrameCount) {
+    uint32_t frameCount = actualFrameCount;
+    fp.seekp(8);
+    fp.write(reinterpret_cast<char*>(&frameCount), sizeof(uint32_t));
 }
 
 //--------------------------------------------------------------
