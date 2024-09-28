@@ -15,6 +15,9 @@
 
 //--------------------------------------------------------------
 void ofApp::setup(){
+    ofLogToConsole();
+    ofSetFrameRate(30);
+    ofSetWindowTitle("GVEncoder");
     gui.setup();
 
     // detect cores
