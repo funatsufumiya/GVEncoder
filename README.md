@@ -10,7 +10,7 @@
 
 ## Usage
 
-- drag & drop into window, a dir contains images to encode. (or add with gui)
+- drag & drop into window, a dir contains image sequence to encode (like 00001.png, 00002.png, ...), or add it with GUI
 - press `Start Encode` button.
 
 ## Dependencies
