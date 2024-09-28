@@ -193,8 +193,9 @@ void ofApp::processFramesInParallel(
     // Write lz4 buffers
     for (const auto& path : sortedPaths) {
         const auto& lz4Buf = lz4Buffers[path];
+        uint64_t address = fp.tellp();
         fp.write(lz4Buf.getData(), lz4Buf.size());
-        address_and_sizes.emplace_back(addressAndSizes[path]);
+        address_and_sizes.emplace_back(address, lz4Buf.size());
 
         // clear buffer
         lz4Buffers[path].clear();
