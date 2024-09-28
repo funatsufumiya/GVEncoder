@@ -103,6 +103,8 @@ void ofApp::startEncodeThread() {
                 // write frame bytes
                 uint32_t frameBytes = width * height; // because DXT5
                 fp.write((char*)&frameBytes, sizeof(uint32_t));
+
+                firstPixels.clear();
             }
 
             // clear address and sizes
@@ -235,10 +237,14 @@ void ofApp::startEncodeThread() {
 
                             flags[k] = true;
 
+                            sourcePixels.clear();
+
                             mutex.unlock();
                         } catch (std::exception e) {
                             error_flags[k] = true;
                             flags[k] = true;
+
+                            sourcePixels.clear();
                         }
                     });
                 }
