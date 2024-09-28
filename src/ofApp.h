@@ -52,6 +52,5 @@ class ofApp : public ofBaseApp{
 		void setAlphaPixels(ofPixels& pixels);
 		void processFramesInParallel(
 			const vector<string>& framePaths, int numCores,
-			int& processed_index,
 			const std::function<void(const string&, int)>& processFrame);
 };

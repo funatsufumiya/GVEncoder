@@ -75,13 +75,19 @@ void ofApp::startEncodeThread() {
                 framePaths.push_back(sourceDir.getPath(i));
             }
 
+            // sort framePaths
+            std::sort(framePaths.begin(), framePaths.end());
+
             // memorize order
-            int processed_index = -1;
+            // int processed_index = -1;
+            std::atomic<int> processed_index(-1);
 
             processFramesInParallel(
                 framePaths, cores,
-                processed_index,
                 [&](const string& path, int index) {
+
+                // ofLog() << "process " << index << ", path: " << path;
+                
                 ofPixels pixels;
                 ofLoadImage(pixels, path);
 
@@ -92,22 +98,34 @@ void ofApp::startEncodeThread() {
 
                 ofBuffer lz4Buf = serializer.serializeImageToLZ4(pixels);
 
-                std::lock_guard<std::mutex> lock(file_mutex);
-                uint64_t address = fp.tellp();
-
                 // don't write here because in parallel!!
                 // fp.write(lz4Buf.getData(), lz4Buf.size());
                 // address_and_sizes.emplace_back(address, lz4Buf.size());
 
                 // wait in order to write
-                while (processed_index != index - 1) {
-                    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+                while (true) {
+                    // ofLog() << "wait for " << index << ", path: " << path;
+                    // ofLog() << "process_index: " << processed_index;
+                    // std::this_thread::sleep_for(std::chrono::nanoseconds(1));
+
+                    // wait random nano seconds
+                    std::this_thread::sleep_for(std::chrono::nanoseconds(rand() % 10));
+                
+                    if (processed_index == index - 1) {
+                        // ofLog() << "writing " << index << ", path: " << path;
+
+                        std::lock_guard<std::mutex> lock(file_mutex);
+                        uint64_t address = fp.tellp();
+
+                        fp.write(lz4Buf.getData(), lz4Buf.size());
+                        address_and_sizes.emplace_back(address, lz4Buf.size());
+
+                        processed_index = index;
+
+                        // ofLog() << "written " << index << ", path: " << path;
+                        break;
+                    }
                 }
-
-                fp.write(lz4Buf.getData(), lz4Buf.size());
-                address_and_sizes.emplace_back(address, lz4Buf.size());
-
-                processed_index = index;
             });
 
             // Write address and sizes (same as before)
@@ -170,14 +188,15 @@ void ofApp::setAlphaPixels(ofPixels& pixels) {
 
 void ofApp::processFramesInParallel(
     const vector<string>& framePaths, int numCores,
-    int& processed_index,
     const std::function<void(const string&, int)>& processFrame)
 {
     for (size_t i = 0; i < framePaths.size(); i += numCores) {
         vector<std::future<void>> futures;
         for (int j = 0; j < numCores && i + j < framePaths.size(); ++j) {
             futures.push_back(std::async(std::launch::async, processFrame, framePaths[i + j], i + j));
+            // ofLog() << "start " << i + j << ", path: " << framePaths[i + j];
         }
+        // wait all threads
         for (auto& future : futures) {
             future.wait();
         }
