@@ -244,7 +244,7 @@ void ofApp::startEncodeThread() {
                 }
 
                 // wait all
-                ofLogNotice("ofApp") << "Wait all";
+                // ofLogNotice("ofApp") << "Wait all";
                 bool state = false;
                 while (!state) {
                     // update progress
@@ -267,7 +267,7 @@ void ofApp::startEncodeThread() {
                     // }
                 }
 
-                ofLogNotice("ofApp") << "All done";
+                // ofLogNotice("ofApp") << "All done";
 
                 // if error, abort()
                 for (int k = 0; k < error_flags.size(); k++) {
