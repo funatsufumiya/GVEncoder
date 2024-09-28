@@ -288,6 +288,16 @@ void ofApp::startEncodeThread() {
                 float progress = (float)(j + 1) / sourceDir.size() * 100;
                 progressMap[sourceDirPath] = progress;
 
+                // clear memory
+                for (int k = 0; k < lz4Bufs.size(); k++) {
+                    lz4Bufs[k].clear();
+                }
+                for (int k = 0; k < sourcePixelMap.size(); k++) {
+                    sourcePixelMap[k].clear();
+                }
+                lz4Bufs.clear();
+                sourcePixelMap.clear();
+
                 j += flags.size() - 1;
             }
 
