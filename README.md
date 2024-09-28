@@ -4,7 +4,7 @@
 
 - oF 0.11 - 0.12
 - [GV Video](https://github.com/Ushio/ofxExtremeGpuVideo) Encoder using [`ofxGVTextureSerializer`](https://github.com/funatsufumiya/ofxGVTextureSerializer).
-  - much faster than original [`nvtt` encoder](https://github.com/Ushio/ofxExtremeGpuVideo/tree/master/nvtt-encoder).
+  - much faster than original [`nvtt` encoder](https://github.com/Ushio/ofxExtremeGpuVideo/tree/master/nvtt-encoder), but file size would be slightly bigger.
   - `DXT5` is only supported.
   - use max multiple cores to encode by default. (you can set cores number)
 
