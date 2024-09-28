@@ -122,7 +122,14 @@ void ofApp::startEncodeThread() {
 
                         processed_index = index;
 
+                        // update progress
+                        progressMap[sourceDirPath] = (float)(index + 1) / sourceDir.size() * 100;
+
                         // ofLog() << "written " << index << ", path: " << path;
+                        break;
+                    }
+
+                    if (needExit) {
                         break;
                     }
                 }
