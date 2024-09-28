@@ -8,7 +8,7 @@
 
 ## Usage
 
-- drop int window, a dir contains images to encode. (or add with gui)
+- drop into window, a dir contains images to encode. (or add with gui)
 - press `encode` button.
 - you can set cores numbers to encode, and video fps.
 
