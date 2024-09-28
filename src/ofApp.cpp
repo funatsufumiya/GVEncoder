@@ -237,14 +237,10 @@ void ofApp::startEncodeThread() {
 
                             flags[k] = true;
 
-                            sourcePixels.clear();
-
                             mutex.unlock();
                         } catch (std::exception e) {
                             error_flags[k] = true;
                             flags[k] = true;
-
-                            sourcePixels.clear();
                         }
                     });
                 }
