@@ -75,6 +75,9 @@ void ofApp::startEncodeThread() {
                 framePaths.push_back(sourceDir.getPath(i));
             }
 
+            std::map<std::string, ofBuffer> lz4Buffers;
+            std::map<std::string, std::pair<uint64_t, uint64_t>> addressAndSizes;
+
             processFramesInParallel(framePaths, cores, [&](const string& path) {
                 ofPixels pixels;
                 ofLoadImage(pixels, path);
@@ -88,13 +91,36 @@ void ofApp::startEncodeThread() {
 
                 std::lock_guard<std::mutex> lock(file_mutex);
                 uint64_t address = fp.tellp();
-                fp.write(lz4Buf.getData(), lz4Buf.size());
-                address_and_sizes.emplace_back(address, lz4Buf.size());
+
+                // don't write here because in parallel!!
+                // fp.write(lz4Buf.getData(), lz4Buf.size());
+                // address_and_sizes.emplace_back(address, lz4Buf.size());
+
+                // instead, store address and size
+                addressAndSizes[path] = std::make_pair(address, lz4Buf.size());
+                lz4Buffers[path] = std::move(lz4Buf);
 
                 int current = ++processed_frames;
                 float progress = (float)(current) / sourceDir.size() * 100;
                 progressMap[sourceDirPath] = progress;
             });
+
+            // sort by path
+            std::vector<std::string> sortedPaths;
+            for (const auto& [path, _] : addressAndSizes) {
+                sortedPaths.push_back(path);
+            }
+            std::sort(sortedPaths.begin(), sortedPaths.end());
+
+            // Write lz4 buffers
+            for (const auto& path : sortedPaths) {
+                const auto& lz4Buf = lz4Buffers[path];
+                fp.write(lz4Buf.getData(), lz4Buf.size());
+                address_and_sizes.emplace_back(addressAndSizes[path]);
+
+                // clear buffer
+                lz4Buffers[path].clear();
+            }
 
             // Write address and sizes (same as before)
             writeAddressAndSizes(fp, address_and_sizes);
