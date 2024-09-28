@@ -317,6 +317,13 @@ void ofApp::startEncodeThread() {
                 fp.write((char*)&address_and_sizes[j].second, sizeof(uint64_t));
             }
 
+            // if aborted, fix frameCount
+            if (needExit) {
+                uint32_t frameCount = address_and_sizes.size();
+                fp.seekp(8);
+                fp.write((char*)&frameCount, sizeof(uint32_t));
+            }
+
             // close file
             fp.close();
 
