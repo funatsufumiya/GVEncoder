@@ -1,7 +1,7 @@
 # GVEncoder
 
 - oF 0.11 - 0.12
-- GV Encoder using `ofxGVTextureSerializer`.
+- [GV Video](https://github.com/Ushio/ofxExtremeGpuVideo) Encoder using `ofxGVTextureSerializer`.
 - seems faster than original `nvtt` encoder.
 
 ## Dependencies
