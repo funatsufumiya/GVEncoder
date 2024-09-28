@@ -42,7 +42,7 @@ void ofApp::startEncodeThread() {
 
         for (int i = 0; i < sourceDirPaths.size(); i++) {
             if (needExit) {
-                return;
+                break;
             }
 
             // target path is source path + ".gv"
@@ -156,7 +156,7 @@ void ofApp::startEncodeThread() {
             // make parallel up to cores
             for (int j = 0; j < paths.size(); j++) {
                 if (needExit) {
-                    return;
+                    break;
                 }
 
                 // wait processes
