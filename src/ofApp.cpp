@@ -455,3 +455,8 @@ void ofApp::dragEvent(ofDragInfo dragInfo){
         }
     }
 }
+
+// --------------------------------------------------------------
+void ofApp::exit() {
+    ofxAsync::stopAll();
+}
