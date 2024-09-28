@@ -9,7 +9,7 @@
 ## Usage
 
 - drag & drop into window, a dir contains images to encode. (or add with gui)
-- press `encode` button.
+- press `Start Encode` button.
 - you can set cores numbers to encode, and video fps.
 
 ## Dependencies
