@@ -13,6 +13,10 @@
 - drag & drop into window, a dir contains image sequence to encode (like 00001.png, 00002.png, ...), or add it with GUI
 - press `Start Encode` button.
 
+## Known Issues
+
+- Some movies won't be converted properly.
+
 ## Dependencies
 
 - [ofxGVTextureSerializer](https://github.com/funatsufumiya/ofxGVTextureSerializer)
